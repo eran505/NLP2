@@ -1,8 +1,25 @@
+import string
+from sklearn import feature_extraction, pipeline
+
 import pandas as pd
 import numpy as np
 import datetime,re,nltk,os
 import matplotlib.pyplot as plt
-
+from numpy.core.defchararray import index
+from sklearn.cross_validation import StratifiedKFold
+from sklearn.decomposition import TruncatedSVD
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_selection import SelectKBest
+from sklearn.feature_selection import SelectPercentile
+from sklearn.feature_selection import f_classif
+from sklearn.preprocessing import Normalizer
+from sklearn.svm import SVC
+from textblob import TextBlob
+from textblob import TextBlob as tb
+from nltk.corpus import stopwords
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
 # April 2017  = Trump switched to a secured phone
 #contains quotes (trump)
 #contais image or url(not trump)
@@ -13,8 +30,6 @@ import matplotlib.pyplot as plt
 # tf-idf
 #convert all time
 # POS
-from numpy.core.defchararray import index
-
 
 def olpcount(p,string):
     pattren = p
@@ -57,13 +72,15 @@ def find_url(text_input):
 
 
 
-
 class Trump_Tweets:
 
     def __init__(self, dataPath):
         self.data_path = dataPath
+        self.stopWords = set(stopwords.words("english"))
         self.colo = ['id','account','tw_text','full_date','device']
         self.df =None
+        self.Lemmaatizer= nltk.WordNetLemmatizer()
+        self.stem= nltk.PorterStemmer()
         self.pre_processing()
         self.data_preparation()
     def pre_processing(self):
@@ -112,13 +129,22 @@ class Trump_Tweets:
         #print new_df.shape
         #print df.shape
         self.df = df
-        reltiv_path = os.getcwd()
-        df.to_csv(reltiv_path+"/res.csv")
+        self.sentient_analysis()
+        print list(df)
+
+    def get_vec_pipe(self,num_comp=0, reducer='svd'):
+        X = np.array([[-1, -1], [-2, -1], [1, 1], [2, 1]])
+        Y = np.array(['C++', 'C#', 'java', 'python'])
+        clf = pipeline.make_pipeline(
+            feature_extraction.text.TfidfTransformer(use_idf=True),SVC(kernel='linear'))
+        clf.fit(X, Y)
+        print(clf.predict([[1.7, 0.7]]))
 
     def text_features(self,df):
         print "texter..."
         #print df['text'][:2]
         #df['text'] = df['text'].apply(lambda x: print_me(x) )
+
         df['num_hash_tag'] = df['tw_text'].apply(lambda x: olpcount('#',x))
         #df['link'] = df['tw_text'].apply(lambda x: olpcount('http',x))
         df['tw_text'] = df['tw_text'].apply(lambda x: find_url(x))
@@ -130,27 +156,106 @@ class Trump_Tweets:
         df['num_mark_!'] = df['tw_text'].str.count('!')
         df['num_time'] = df['tw_text'].str.count('TIMME')
         df['num_time'] += df['tw_text'].str.count('TIMMEE')
+        self.df = df
 
-        list_col = ['num_time','num_mark_!','link','num_hash_tag']
-        for col in list_col:
-            self.make_binary_col(df,col)
 
-        df['tokens'] = df['tw_text'].apply(lambda x: nltk.word_tokenize(x))
     def make_binary_col(self,df,name_col):
         df[name_col+'_B'] = np.where(df[name_col] > 0, 1, 0)
+
     def data_preparation(self):
-        new_df= self.df.copy(deep=True)
         target_device = ['iphone','android'] # WEB | OTHER
+        new_df= self.df.copy(deep=True)
         new_df = new_df.loc[new_df['account'] == "realDonaldTrump"]
-        new_df = new_df.loc[new_df['full_date'] > datetime.date(2017, 4, 1)]
-        new_df = new_df.loc[new_df['account'].isin(target_device)]
-        new_df['code'] = new_df['device'].astype('category').cat.codes
-        #print new_df[new_df['code','device']]
+        new_df = new_df.loc[new_df['full_date'] < datetime.date(2017, 4, 1)]
+        new_df = new_df.loc[new_df['device'].isin(target_device)]
+        new_df['target'] = np.where(new_df['device'] == 'iphone',-1,1)
+        new_df.reset_index(drop=True)
+        new_df = new_df.drop(['clean_tw','device', 'account', 'id','code','full_date','tw_text'], axis=1)
+        print list(new_df)
+        return new_df
+
     def time_feature(self,df):
         df['morning'] = np.where((df['full_date'].dt.hour  >= 6.0) & (df['full_date'].dt.hour  < 12.0) , 1, 0)
         df['night'] = np.where((df['full_date'].dt.hour  >= 0.0) & (df['full_date'].dt.hour  < 6.0) , 1 , 0)
+
     def __str__(self):
         return "Hello %(name)s!" % self
+
+    def sent_algo_polarity(self,txt):
+        wiki = TextBlob(txt)
+        return wiki.sentiment[0]
+
+    def sent_algo_subjectivity(self,txt):
+        wiki = TextBlob(txt)
+        return wiki.sentiment[1]
+
+    def Noun_noun_phrases(self,txt):
+        print txt
+        wiki = TextBlob(txt)
+        res = wiki.noun_phrases
+        print res
+        return res
+
+    def sentient_analysis(self):
+        df =self.df
+        print "start_sentient_analysis...."
+        self.stopWords.add('atuser')
+        self.stopWords.add('urli')
+        df["clean_tw"]=df['tw_text'].copy(deep=True)
+        df["clean_tw"] = df["clean_tw"].apply(self.processTweet2)
+        df['polarity'] = df["clean_tw"].apply(self.sent_algo_polarity)
+        df['subjectivity'] = df["clean_tw"].apply(self.sent_algo_subjectivity)
+        #df['Nouns_Phrases'] = df["tw_text"].apply(self.Noun_noun_phrases)
+        self.df = df
+        reltiv_path = os.getcwd()
+        #df[["clean_tw","tw_text"]].to_csv(reltiv_path+"/res.csv",sep=';')
+
+    def processTweet2(self,tweet):
+        #print "old:",tweet
+        # process the tweets
+        # Convert to lower case
+        #tweet = "@realkingrobbo: @realDonaldTrump @Greg39529063 @ABC2020 @ABC @BarbaraJWalters the best man for the job! Thanks!"
+        tweet = tweet.lower()
+        # Convert www.* or https?://* to URL
+        tweet = re.sub('((www\.[^\s]+)|(https?://[^\s]+))', ' urli ', tweet)
+        # Convert @username to AT_USER
+        tweet = re.sub(r"@[^\s]+[\s]?", ' atuser ', tweet)
+        # Remove additional white spaces
+        tweet = re.sub('[\s]+', ' ', tweet)
+        #remove &amp char in html &
+        tweet = re.sub(r'&amp;', '', tweet)
+        # Replace #word with word
+        tweet = re.sub(r'#([^\s]+)', r'\1', tweet)
+        #remvoe numbers
+        tweet = re.sub(r"\s?[0-9]+\.?[0-9]*","",tweet)
+        # from a string
+
+        regex = re.compile('[%s]' % re.escape((string.punctuation)))
+        tweet = regex.sub('',tweet)
+        tweet = tweet.strip('\'"?,.')
+
+        res = []
+        for w in nltk.word_tokenize(tweet):
+            if w in self.stopWords:
+                continue
+            w = self.stem.stem(w)
+            w = self.Lemmaatizer.lemmatize(w)
+            res.append(w)
+        #print "new: "," ".join(res)
+        return " ".join(res)
+
+    def fit(self,df):
+        y=df[-1]
+        X=df[:-1]
+        folds = 10
+        sf = StratifiedKFold(n_splits=folds, shuffle=True)
+        sf.get_n_splits(X, y)
+        measure_df = pd.DataFrame(columns=['clf', 'accuracy', 'AUC', 'recall', 'precision', 'time'])
+        for index, (train_indices, val_test_indices) in enumerate(sf.split(X, y)):
+            # Generate batches from indices
+            x_Train, x_Test = X.loc[train_indices], X.loc[val_test_indices]
+            y_Train, y_Test = y.loc[train_indices], y.loc[val_test_indices]
+            
 
 
 
