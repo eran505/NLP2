@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-import datetime,re,nltk
+import datetime,re,nltk,os
 import matplotlib.pyplot as plt
 
 # April 2017  = Trump switched to a secured phone
@@ -25,7 +25,6 @@ def olpcount(p,string):
         if string[c:c + l] == pattren:
             ct += 1
     return ct
-
 def remove_record(rec):
     tmp = str(rec).split()
     tmp_res = " ".join(tmp)
@@ -42,27 +41,28 @@ def regex_finder(data_in):
         return 1
     else:
         return 0
+def regex_time_fun(data_text): #TIMME or TIMMEE
+    new_txt = re.sub(r'\d{1,2}:\d{2}' , 'TIMME' , data_text)
+    new_txt = re.sub(r'(\d{1,2}h)|(\d{1,2}:\d{2})|(\d{1,2}\s*(?:am|pm|AM|PM|A.M.|P.M.|A.m,|P.m.))','TIMME',new_txt)
+    new_txt = re.sub(r'(\d{1,2}:\d{2})\s*(am|pm|AM|PM|A.M.|P.M.|A.m|P.m.)','TIMME', new_txt)
+    new_txt = re.sub(r'(A.M.|P.M.|A.m|P.m.)',"",new_txt)
 
-def regex_time_fun(data_text):
-    new_txt = re.sub(r'\d{1,2}:\d{2}' , 'TIIMEE' , data_text)
-    x = re.findall(r'(\d{1,2}h)|(\d{1,2}:\d{2})|(\d{1,2}\s?(?:am|pm|AM|PM|A.M.|P.M.|A.m,|P.m.|Am|Pm))',data_text)
-    #if len(x)>0:
-    #    print x , "D=",data_text
     return new_txt
-
-
-
-
+def get_size(x):
+    return len(str(x))
 def find_url(text_input):
     #ans = re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', text)
     result_text = re.sub(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', 'URLi', text_input)
     return str(result_text)
 
+
+
+
 class Trump_Tweets:
 
     def __init__(self, dataPath):
         self.data_path = dataPath
-        self.colo = ['id','account','text','full_date','device']
+        self.colo = ['id','account','tw_text','full_date','device']
         self.df =None
         self.pre_processing()
         self.data_preparation()
@@ -70,49 +70,29 @@ class Trump_Tweets:
         print "pre-processing...."
 
         #reading the file into a data-frame when the first column is the index
-        tweets = pd.read_csv('tweets.tsv',
-                             sep='\t',
-                             names=['id', 'user_handle', 'tweet_text', 'time_stamp', 'device'],
-                             # index_col = 0,
-                             parse_dates=['time_stamp'],
-                             quoting=3
-                             )
-        tweets['tweet_text'] = tweets['tweet_text'].apply(lambda x: remove_record(x))
-        exit()
-        df = pd.read_csv(self.data_path, sep='\t',names = self.colo)
-        df[['id','account','text','full_date','device']].to_csv('/home/eran/NLP/NLP2/res.csv',index=False,)
-        #print df['id'][:3]
-
-        df['remove'] = df['text'].apply(lambda x: remove_record(x))
-        df.drop(df[df['remove'] == 0 ].index, inplace=True)
-        print df.shape
-        df=df.dropna()
-        print df.shape
-        df[['text','id']].to_csv('/home/eran/NLP/NLP2/res.csv')
+        df = pd.read_csv('tweets.tsv',sep='\t',names=self.colo,quoting=3 )
+        #df['remove'] = df['tw_text'].apply(lambda x: remove_record(x))
+        #print "before:",df.shape
+        #df.drop(df[df['remove'] == 0 ].index, inplace=True)
+        #print "after:",df.shape
+        #df=df.dropna()
+        #print df.shape
         #fill NA Values with mean
         #print df.loc[df['code'] == -1  ][['id','device','code']]
         #df['device'].fillna('android', inplace=True)
         #df['account'].fillna('realDonaldTrump', inplace=True)
         #df['time'].fillna(df['time'].mean, inplace=True)
-        #print list(df)
-
+        print list(df)
+        df['tw_text'] = df['tw_text'].astype(str)
         df['full_date'] = pd.to_datetime(df['full_date'])  # dt.date / dt.time
-        #print  df['full_date'].dt.hour
         df['day'] =  df['full_date'].dt.weekday
         df['time']  = df['full_date'].dt.time
         df['date'] = df['full_date'].dt.date
-        df['text_length'] = df['text'].apply(len)
+        df['text_length'] = df['tw_text'].apply(get_size)
 
         #link in the tweet
         #df['link'] = np.where(str(df['text']).__contains__('http') ,1, 0)
         #count number of hash-tags
-        df['num_hash_tag'] = df['text'].apply(lambda x: olpcount('#',x))
-        df['link'] = df['text'].apply(lambda x: olpcount('http',x))
-        df['link_B'] = np.where(df['link']>0,1,0)
-        df['num_hash_tag_B'] = np.where(df['num_hash_tag'] > 0, 1, 0)
-        #print df['time'].dt.time
-        df['quotes'] = df['text'].apply(lambda x: regex_finder(x))
-        df['device'] = df['device'].astype(str)
 
         df['device'] = np.where(df['device'].str.contains("instagram"),"INSTA",df['device'])
         df['device'] = np.where(df['device'].str.contains("twitter"), "WEB", df['device'])    # Twitter WeB/iPad
@@ -124,7 +104,7 @@ class Trump_Tweets:
 
         self.text_features(df)
 
-        df.sort_values('time', ascending=True,inplace=True)
+        #df.sort_values('time', ascending=True,inplace=True)
         self.time_feature(df)
         #new_df = df.loc[df['account'] == "realDonaldTrump"]
         #new_df = df.loc[df['full_date'] > datetime.date(2017,4,1)]
@@ -132,19 +112,32 @@ class Trump_Tweets:
         #print new_df.shape
         #print df.shape
         self.df = df
-
-
-        #print df[['device','code','id']]
+        reltiv_path = os.getcwd()
+        df.to_csv(reltiv_path+"/res.csv")
 
     def text_features(self,df):
         print "texter..."
         #print df['text'][:2]
         #df['text'] = df['text'].apply(lambda x: print_me(x) )
-        #
-        df['text'] = df['text'].apply(regex_time_fun)
-        df['text'] = df['text'].apply(lambda x: find_url(x))
-        df['tokens'] = df['text'].apply(lambda x: nltk.word_tokenize(x))
+        df['num_hash_tag'] = df['tw_text'].apply(lambda x: olpcount('#',x))
+        #df['link'] = df['tw_text'].apply(lambda x: olpcount('http',x))
+        df['tw_text'] = df['tw_text'].apply(lambda x: find_url(x))
+        df['link'] = df['tw_text'].str.count('URLi')
+        df['quotes'] = df['tw_text'].apply(lambda x: regex_finder(x))
+        df['device'] = df['device'].astype(str)
+        df['tw_text'] = df['tw_text'].apply(regex_time_fun)
+        df['num_ref'] = df['tw_text'].str.count('@')
+        df['num_mark_!'] = df['tw_text'].str.count('!')
+        df['num_time'] = df['tw_text'].str.count('TIMME')
+        df['num_time'] += df['tw_text'].str.count('TIMMEE')
 
+        list_col = ['num_time','num_mark_!','link','num_hash_tag']
+        for col in list_col:
+            self.make_binary_col(df,col)
+
+        df['tokens'] = df['tw_text'].apply(lambda x: nltk.word_tokenize(x))
+    def make_binary_col(self,df,name_col):
+        df[name_col+'_B'] = np.where(df[name_col] > 0, 1, 0)
     def data_preparation(self):
         new_df= self.df.copy(deep=True)
         target_device = ['iphone','android'] # WEB | OTHER
@@ -156,9 +149,10 @@ class Trump_Tweets:
     def time_feature(self,df):
         df['morning'] = np.where((df['full_date'].dt.hour  >= 6.0) & (df['full_date'].dt.hour  < 12.0) , 1, 0)
         df['night'] = np.where((df['full_date'].dt.hour  >= 0.0) & (df['full_date'].dt.hour  < 6.0) , 1 , 0)
-
     def __str__(self):
         return "Hello %(name)s!" % self
 
 
-TT = Trump_Tweets('tweets.tsv')
+
+if __name__ == "__main__":
+    TT = Trump_Tweets('tweets.tsv')
