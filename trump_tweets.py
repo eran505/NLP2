@@ -6,13 +6,23 @@ import numpy as np
 import datetime,re,nltk,os
 import matplotlib.pyplot as plt
 from numpy.core.defchararray import index
-from sklearn.cross_validation import StratifiedKFold
+
+from sklearn.datasets import fetch_20newsgroups
+from sklearn.feature_selection import mutual_info_classif
+from sklearn.feature_extraction.text import CountVectorizer
+
 from sklearn.decomposition import TruncatedSVD
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import SelectPercentile
+from sklearn.feature_selection import VarianceThreshold
 from sklearn.feature_selection import f_classif
 from sklearn.preprocessing import Normalizer
+from sklearn.model_selection import StratifiedKFold
+from sklearn.feature_extraction.text import TfidfTransformer
+import time
+from sklearn import metrics
+
 from sklearn.svm import SVC
 from textblob import TextBlob
 from textblob import TextBlob as tb
@@ -130,15 +140,9 @@ class Trump_Tweets:
         #print df.shape
         self.df = df
         self.sentient_analysis()
-        print list(df)
+        #print list(df)
 
-    def get_vec_pipe(self,num_comp=0, reducer='svd'):
-        X = np.array([[-1, -1], [-2, -1], [1, 1], [2, 1]])
-        Y = np.array(['C++', 'C#', 'java', 'python'])
-        clf = pipeline.make_pipeline(
-            feature_extraction.text.TfidfTransformer(use_idf=True),SVC(kernel='linear'))
-        clf.fit(X, Y)
-        print(clf.predict([[1.7, 0.7]]))
+
 
     def text_features(self,df):
         print "texter..."
@@ -162,22 +166,12 @@ class Trump_Tweets:
     def make_binary_col(self,df,name_col):
         df[name_col+'_B'] = np.where(df[name_col] > 0, 1, 0)
 
-    def data_preparation(self):
-        target_device = ['iphone','android'] # WEB | OTHER
-        new_df= self.df.copy(deep=True)
-        new_df = new_df.loc[new_df['account'] == "realDonaldTrump"]
-        new_df = new_df.loc[new_df['full_date'] < datetime.date(2017, 4, 1)]
-        new_df = new_df.loc[new_df['device'].isin(target_device)]
-        new_df['target'] = np.where(new_df['device'] == 'iphone',-1,1)
-        new_df.reset_index(drop=True)
-        new_df = new_df.drop(['clean_tw','device', 'account', 'id','code','full_date','tw_text'], axis=1)
-        print list(new_df)
-        return new_df
+
+
 
     def time_feature(self,df):
-        df['morning'] = np.where((df['full_date'].dt.hour  >= 6.0) & (df['full_date'].dt.hour  < 12.0) , 1, 0)
-        df['night'] = np.where((df['full_date'].dt.hour  >= 0.0) & (df['full_date'].dt.hour  < 6.0) , 1 , 0)
-
+        df['night'] = np.where( (df['full_date'].dt.hour  > 18.0 ) | (df['full_date'].dt.hour  < 6.0 )  , 1 , 0)
+        df['work_time'] = np.where((df['full_date'].dt.hour >= 6.0) & (df['full_date'].dt.hour < 18.0), 1, 0)
     def __str__(self):
         return "Hello %(name)s!" % self
 
@@ -244,18 +238,92 @@ class Trump_Tweets:
         #print "new: "," ".join(res)
         return " ".join(res)
 
+    def Vector_text_data(self,df_frame):
+        print "vectorize"
+
+        tf = TfidfVectorizer( analyzer='word', ngram_range=(1,2),
+                             min_df=0.03)
+        tfidf_matrix = tf.fit_transform(df_frame['clean_tw']).toarray()
+        df_train_text = pd.DataFrame(tfidf_matrix, columns=[str(x) for x in tf.get_feature_names()], index=df_frame.index)
+
+        print [str(x) for x in tf.get_feature_names()]
+
+        res_df= df_frame.merge(df_train_text, right_index=True, left_index=True)
+
+        good_bye_list=['clean_tw']
+        res_df.drop(good_bye_list, axis=1, inplace=True)
+
+        return res_df
+    def data_preparation(self):
+        target_device = ['iphone','android'] # WEB | OTHER
+        new_df= self.df.copy(deep=True)
+        new_df = new_df.loc[new_df['account'] == "realDonaldTrump"]
+        new_df = new_df.loc[new_df['full_date'] < datetime.date(2017, 4, 1)]
+        new_df = new_df.loc[new_df['device'].isin(target_device)]
+        new_df['target'] = np.where(new_df['device'] == 'iphone',-1,1)
+        new_df.reset_index(drop=True)
+        new_df = new_df.drop(['clean_tw','device', 'account',  'time', 'date', 'id','code','full_date','tw_text'], axis=1)
+        self.fit(new_df)
+
+    def variance_threshold_select(self,df_train,df1_test, thresh=0.0099):
+        df1 = df_train.copy(deep=True)  # Make a deep copy of the dataframe
+        selector = VarianceThreshold(thresh)
+        #print  df1[pd.isnull(df1).any(axis=1)]
+        selector.fit(df1.values)  # Fill NA values as VarianceThreshold cannot deal with those
+        print selector.get_support(indices=False)
+        df2 = df_train.loc[:,selector.get_support(indices=False)]  # Get new dataframe with columns deleted that have NA values
+        df2_test = df1_test.loc[:,selector.get_support(indices=False)]
+        return df2,df2_test
+
     def fit(self,df):
-        y=df[-1]
-        X=df[:-1]
-        folds = 10
-        sf = StratifiedKFold(n_splits=folds, shuffle=True)
+        list_metric = []
+        y=df['target']
+        X=df.loc[:, df.columns != 'target']
+        sf = StratifiedKFold(n_splits=10, shuffle=True)
         sf.get_n_splits(X, y)
-        measure_df = pd.DataFrame(columns=['clf', 'accuracy', 'AUC', 'recall', 'precision', 'time'])
+
+        print "*" * 55
+        print "entropy = ",mutual_info_classif(X, y)
+        print list(X)
+        print "*"*55
+
         for index, (train_indices, val_test_indices) in enumerate(sf.split(X, y)):
             # Generate batches from indices
-            x_Train, x_Test = X.loc[train_indices], X.loc[val_test_indices]
-            y_Train, y_Test = y.loc[train_indices], y.loc[val_test_indices]
-            
+            x_Train, x_Test = X.iloc[train_indices], X.iloc[val_test_indices]
+            y_Train, y_Test = y.iloc[train_indices], y.iloc[val_test_indices]
+            #x_Train = self.Vector_text_data(x_Train)
+            #x_Test = self.Vector_text_data(x_Test)
+            print "-----"*10
+            print "x_Test",x_Test.shape
+            print "x_Train", x_Train.shape
+            print "-----" * 10
+
+            x_Train_fs, x_Test_fs = self.variance_threshold_select(x_Train,x_Test)
+
+            clf_svm_lin = SVC(kernel='linear')
+            t_start = time.clock()
+            clf_svm_lin.fit(x_Train_fs, y_Train)
+            t = time.clock() - t_start
+            y_pred = clf_svm_lin.predict(x_Test_fs)
+
+
+
+            #add all method evaluation
+            accuracy =metrics.accuracy_score(y_true=y_Test, y_pred=y_pred)
+            fpr, tpr, thresholds = metrics.roc_curve(y_true=y_Test, y_score=y_pred, drop_intermediate=True)
+            auc= np.trapz(tpr, fpr)
+            recall=  metrics.recall_score(y_true=y_Test, y_pred=y_pred)
+            precision = metrics.precision_score(y_true=y_Test , y_pred=y_pred)
+            f1 = metrics.f1_score(y_true=y_Test , y_pred=y_pred)
+            list_metric.append({'AUC':auc,'Accuracy':accuracy,'RECALL':recall,
+                                'Precision':precision,'F1_score':f1,'Time':t})
+
+
+        measure_df = pd.DataFrame(list_metric)
+        list_param  = list(measure_df)
+        for col in list_param:
+            print col,"=",measure_df[col].mean()
+
 
 
 

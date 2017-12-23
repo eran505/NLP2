@@ -136,7 +136,6 @@ for train_index, test_index in skf.split(X, y):
     # fit to the training data, transform the test data
     X_column_feat = vectorizer.fit_transform(X_train['clean_tweet']).toarray()
     test_column_feat = vectorizer.transform(X_test['clean_tweet']).toarray()
-
     # append to the text features arrays
     text_feat_labels = vectorizer.get_feature_names()
     text_feat_col_name = [str(x) for x in text_feat_labels]
@@ -156,8 +155,11 @@ for train_index, test_index in skf.split(X, y):
     thresh.fit_transform(X_train.values)
     # thresh.transform(X_test.values)
     feature_labels_full = X_train.columns
+    print  "feature_labels_full ",feature_labels_full
     feature_labels = feature_labels_full[thresh.get_support(indices=True)]
     # print(feature_labels)
+    print thresh.get_support(indices=True)
+    print "feature_labels ",feature_labels
 
     X_train_sel = X_train[feature_labels]
     X_test_sel = X_test[feature_labels]
