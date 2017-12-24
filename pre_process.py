@@ -34,7 +34,10 @@ def lemmatize_words_array(words_array):
     tagged = nltk.pos_tag(words_array)
     lemmatized_words_array = []
     for word in tagged:
-        lemma = lemmatizer.lemmatize(word[0], wordnet_tag[word[1]])
+        if word[1] in wordnet_tag:
+            lemma = lemmatizer.lemmatize(word[0], wordnet_tag[word[1]])
+        else:
+            lemma = lemmatizer.lemmatize( word[0] )
         lemmatized_words_array.append(lemma)
     return lemmatized_words_array
 
