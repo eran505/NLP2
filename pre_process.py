@@ -1,11 +1,5 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sat Oct  3 21:10:32 2015
-Stemmer & Lemmatization
 
-@author: Ryan
-"""
-# from nltk
+
 from nltk.corpus import stopwords  # Import the stop word list
 import nltk
 import string
@@ -21,15 +15,16 @@ wordnet_tag = {'NN': 'n', 'JJ': 'a', 'VB': 'v', 'RB': 'r', 'VBN': 'v', 'VBD': 'v
                'PRP$': 'n', 'RP': 'r', 'WP$': 'n', 'PDT': 'n', 'WDT': 'n', 'WP': 'n', 'LS': 'n'
                }
 
-#####
+###################################################
 Lemmaatizer = nltk.WordNetLemmatizer()
 stem = nltk.PorterStemmer()
 cachedStopWords = stopwords.words("english")
+####################################################
 
 
-# Lemmatizer and POS tagger to fit each word based on its POS
-# require wordnet_tag
 def lemmatize_words_array(words_array):
+    # Lemmatizer and POS tagger to fit each word based on its POS
+    # require wordnet_tag
     lemmatizer = nltk.stem.WordNetLemmatizer()
     tagged = nltk.pos_tag(words_array)
     lemmatized_words_array = []
@@ -42,7 +37,7 @@ def lemmatize_words_array(words_array):
     return lemmatized_words_array
 
 
-# Not using Stemmer
+
 def stem_words_array(words_array):
     stemmer = nltk.PorterStemmer()
     stemmed_words_array = []
@@ -143,6 +138,49 @@ def text_clean(data):
     #print 'final_sent = ',final_sent
     return final_sent
 
+def clean_tweets_data(tweet):
+    # print "old:",tweet
+    # process the tweets
+    # Convert to lower case
+    tweet = tweet.lower()
+    # Convert www.* or https?://* to URL
+    tweet = re.sub('((www\.[^\s]+)|(https?://[^\s]+))', ' urli ', tweet)
+    # Convert @username to AT_USER
+    tweet = re.sub(r"@[^\s]+[\s]?", ' atuser ', tweet)
+    # Remove additional white spaces
+    tweet = re.sub('[\s]+', ' ', tweet)
+    # remove &amp char in html &
+    tweet = re.sub(r'&amp;', '', tweet)
+    # Replace #word with word
+    tweet = re.sub(r'#([^\s]+)', r'\1', tweet)
+    # remvoe numbers
+    tweet = re.sub(r"\s?[0-9]+\.?[0-9]*", "", tweet)
+    tweet = re.sub(r'\d{1,2}:\d{2}' , 'TIMME' , tweet)
+    tweet = re.sub(r'(\d{1,2}h)|(\d{1,2}:\d{2})|(\d{1,2}\s*(?:am|pm|AM|PM|A.M.|P.M.|A.m,|P.m.))','TIMME',tweet)
+    tweet = re.sub(r'(\d{1,2}:\d{2})\s*(am|pm|AM|PM|A.M.|P.M.|A.m|P.m.)','TIMME', tweet)
+    tweet = re.sub(r'(A.M.|P.M.|A.m|P.m.)',"",tweet)
+
+    # from a string
+    regex = re.compile('[%s]' % re.escape((string.punctuation)))
+    tweet = regex.sub('', tweet)
+    tweet = tweet.strip('\'"?,.')
+    xx = stopwords.words("english")
+    # Add first, second and one
+    xx.extend(["first", "atuser","urli","TIMME","second", "one", "two", "also", "may", "least", "present", "determine",
+               "included", "includes", "include", "provided", "provides", "wherein", "method", "methods",
+               "comprises", "comprised", "comprising", "used", "uses", "using", "use", "say", "says", "said",
+               "disclose", "discloses", "disclosed",
+               "containing", "contain", "contains", "contained", "make", "made", "makes", "end", "couple", "relates"
+                                                                                                           "b", "c",
+               "d"])
+    stops = set(xx)
+    words = tweet.split()
+    # 5. Remove stop words
+    meaningful_words = [w for w in words if not w in stops]
+
+    lemmatization = lemmatize_words_array(meaningful_words)
+    # print "new: "," ".join(res)
+    return (" ".join(lemmatization))
 
 if __name__ == "__main__":
     print patent_to_words("hi-bal go 4:3 to bal   raw data..")

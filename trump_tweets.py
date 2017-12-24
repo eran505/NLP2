@@ -94,6 +94,11 @@ class Trump_Tweets:
         self.stem= nltk.PorterStemmer()
         self.pre_processing()
         self.data_preparation()
+
+    def read_data(self):
+        df = pd.read_csv('tweets.tsv', sep='\t', names=self.colo, quoting=3)
+        return df
+
     def pre_processing(self):
         print "pre-processing...."
 
@@ -283,7 +288,7 @@ class Trump_Tweets:
         tfidf_matrix = tf.fit_transform(df_frame['clean_tw']).toarray()
         df_train_text= pd.DataFrame(tfidf_matrix, columns=[str(x) for x in tf.get_feature_names()],index=df_frame.index)
         feature_names = tf.get_feature_names()
-        df_test_x = df_test.drop[]
+
         ######################################################################
 
         ch2 = SelectKBest(chi2, k=10)

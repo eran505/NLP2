@@ -82,6 +82,7 @@ Text Pre-processing with NLTK
 
 print("data cleaning...")
 t0 = time()
+df = df.iloc[:1000]
 df['text_data']=df['text_data'].apply(lambda x: pp.patent_to_words(x))
 print ( "done in %0.3fs." % (time() - t0) )
 reltiv_path = "/home/ise/NLP/data_sets"
