@@ -2,13 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="76387b8f-079a-4900-a8f7-23bffc957844" name="Default" comment="">
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/dictionaries/ise.xml" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/pre_process.py" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/topic.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/NLP2.iml" afterPath="$PROJECT_DIR$/.idea/NLP2.iml" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/misc.xml" afterPath="$PROJECT_DIR$/.idea/misc.xml" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/trump_tweets.py" afterPath="$PROJECT_DIR$/trump_tweets.py" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="TRACKING_ENABLED" value="true" />
@@ -409,7 +403,14 @@
       <option name="project" value="LOCAL" />
       <updated>1514134597619</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="18:57 24/12/17">
+      <created>1514134694628</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1514134694628</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="ToolWindowManager">
@@ -440,7 +441,8 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="bla" />
-    <option name="LAST_COMMIT_MESSAGE" value="bla" />
+    <MESSAGE value="18:57 24/12/17" />
+    <option name="LAST_COMMIT_MESSAGE" value="18:57 24/12/17" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
