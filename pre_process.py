@@ -15,7 +15,7 @@ import re
 # http://theforgetfulcoder.blogspot.com/2012/06/stemming-or-lemmatization-words.html
 # map POS labels to labels that can be read by the lemmatizer
 
-wordnet_tag = {'NN': 'n', 'JJ': 'a', 'VB': 'v', 'RB': 'r', 'VBN': 'v', 'VBD': 'v',
+wordnet_tag = {'NN': 'n', 'JJ': 'a', 'VB': 'v', 'RB': 'r', 'VBN': 'v', 'VBD': 'v','FW':'n',
                'VBG': 'v', 'VBZ': 'v', 'NNS': 'n', 'VBP': 'v', 'CD': 'n', 'IN': 'n', 'MD': 'n',
                'JJR': 'a', 'JJS': 'a', 'DT': 'n', 'RBR': 'r', 'PRP': 'n', 'CC': 'n', 'WRB': 'n',
                'PRP$': 'n', 'RP': 'r', 'WP$': 'n', 'PDT': 'n', 'WDT': 'n', 'WP': 'n', 'LS': 'n'
@@ -32,7 +32,7 @@ cachedStopWords = stopwords.words("english")
 def lemmatize_words_array(words_array):
     lemmatizer = nltk.stem.WordNetLemmatizer()
     tagged = nltk.pos_tag(words_array)
-    lemmatized_words_array = [];
+    lemmatized_words_array = []
     for word in tagged:
         lemma = lemmatizer.lemmatize(word[0], wordnet_tag[word[1]])
         lemmatized_words_array.append(lemma)
