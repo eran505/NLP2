@@ -26,6 +26,7 @@ from sklearn import preprocessing
 from sklearn.svm import SVC
 from textblob import TextBlob
 from textblob import TextBlob as tb
+from sklearn.feature_selection import SelectKBest, chi2
 from nltk.corpus import stopwords
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -178,6 +179,7 @@ class Trump_Tweets:
     def time_feature(self,df):
         df['night'] = np.where( (df['full_date'].dt.hour  > 18.0 ) | (df['full_date'].dt.hour  < 6.0 )  , 1 , 0)
         df['work_time'] = np.where((df['full_date'].dt.hour >= 6.0) & (df['full_date'].dt.hour < 18.0), 1, 0)
+
     def __str__(self):
         return "Hello %(name)s!" % self
 
@@ -214,7 +216,6 @@ class Trump_Tweets:
         #print "old:",tweet
         # process the tweets
         # Convert to lower case
-        #tweet = "@realkingrobbo: @realDonaldTrump @Greg39529063 @ABC2020 @ABC @BarbaraJWalters the best man for the job! Thanks!"
         tweet = tweet.lower()
         # Convert www.* or https?://* to URL
         tweet = re.sub('((www\.[^\s]+)|(https?://[^\s]+))', ' urli ', tweet)
@@ -244,17 +245,60 @@ class Trump_Tweets:
         #print "new: "," ".join(res)
         return " ".join(res)
 
-    def Vector_text_data(self,df_frame):
+    def Vector_text_data(self,df_frame,df_test):
         print "vectorize"
+        tf = TfidfVectorizer( analyzer='word', ngram_range=(1,2),
+                             min_df=0.05)
+        df_iphone = df_frame.loc[df_frame['device']=='iphone']
+        df_andriod= df_frame.loc[df_frame['device'] == 'android']
 
+        tfidf_matrix_iphone  = tf.fit_transform(df_iphone['clean_tw']).toarray()
+        df_train_text_iphone = pd.DataFrame(tfidf_matrix_iphone, columns=[str(x) for x in tf.get_feature_names()], index=df_iphone.index)
+        list_iphone = [str(x) for x in tf.get_feature_names()]
         tf = TfidfVectorizer( analyzer='word', ngram_range=(1,2),
                              min_df=0.03)
+        tfidf_matrix_android = tf.fit_transform(df_andriod['clean_tw']).toarray()
+        df_train_text_android  = pd.DataFrame(tfidf_matrix_android, columns=[str(x) for x in tf.get_feature_names()], index=df_andriod.index)
+        list_android = [str(x) for x in tf.get_feature_names()]
+
+        diff = set(list_iphone) - set(list_android)
+        diff2 = set(list_android) - set(list_iphone)
+        diff_list = list(diff) + list(diff2)
+        print diff_list
+
+        cols_iphone = [col for col in df_train_text_iphone.columns if col in diff_list ]
+        print df_train_text_iphone.shape
+
+        df_train_text_iphone = df_train_text_iphone[cols_iphone ]
+        print df_train_text_iphone.shape
+        cols_iphone = [col for col in df_train_text_android.columns if col in diff_list]
+        print df_train_text_android.shape
+        df_train_text_android = df_train_text_android[cols_iphone]
+        print df_train_text_android.shape
+
+
+        ######################################################################
+        tf = TfidfVectorizer(analyzer='word', ngram_range=(1, 2),
+                             min_df=0.03)
         tfidf_matrix = tf.fit_transform(df_frame['clean_tw']).toarray()
-        df_train_text = pd.DataFrame(tfidf_matrix, columns=[str(x) for x in tf.get_feature_names()], index=df_frame.index)
+        df_train_text= pd.DataFrame(tfidf_matrix, columns=[str(x) for x in tf.get_feature_names()],index=df_frame.index)
+        feature_names = tf.get_feature_names()
+        df_test_x = df_test.drop[]
+        ######################################################################
 
-        print [str(x) for x in tf.get_feature_names()]
+        ch2 = SelectKBest(chi2, k=10)
+        X_train = ch2.fit_transform(df_train_text, df_frame['target'])
+        X_test = ch2.transform(df_test)
+        print feature_names[ch2.get_support(indices=True)]
+        feature_names = [feature_names[i] for i in ch2.get_support(indices=True)]
+        print feature_names
 
-        res_df= df_frame.merge(df_train_text, right_index=True, left_index=True)
+        df_train_text_iphone.to_csv("~/NLP/NLP2/tf_iphone.csv")
+        df_train_text_android.to_csv("~/NLP/NLP2/tf_android.csv")
+        exit()
+
+
+        #res_df= df_frame.merge(df_train_text, right_index=True, left_index=True)
 
         good_bye_list=['clean_tw']
         res_df.drop(good_bye_list, axis=1, inplace=True)
@@ -268,7 +312,7 @@ class Trump_Tweets:
         new_df = new_df.loc[new_df['device'].isin(target_device)]
         new_df['target'] = np.where(new_df['device'] == 'iphone',-1,1)
         new_df.reset_index(drop=True)
-        new_df = new_df.drop(['clean_tw','device', 'account',  'time', 'date', 'id','code','full_date','tw_text'], axis=1)
+        new_df = new_df.drop([ 'account',  'time', 'date', 'id','code','full_date','tw_text'], axis=1)
         self.fit(new_df)
 
     def variance_threshold_select(self,df_train,df1_test, thresh=0.0099):
@@ -285,7 +329,6 @@ class Trump_Tweets:
         list_metric = []
         y=df['target']
         X=df.loc[:, df.columns != 'target']
-
         #---normalize the data
         to_norm_list = ['text_length', 'num_hash_tag', 'link', 'quotes', 'num_ref'
             , 'num_mark_!', 'num_time']
@@ -294,16 +337,20 @@ class Trump_Tweets:
         sf = StratifiedKFold(n_splits=10, shuffle=True)
         sf.get_n_splits(X, y)
 
-        print "*" * 55
-        print "entropy = ",mutual_info_classif(X, y)
-        print list(X)
-        print "*"*55
+        #print "*" * 55
+        #print "mutual_info = ",mutual_info_classif(X, y)
+        #print list(X)
+        # "*"*55
 
         for index, (train_indices, val_test_indices) in enumerate(sf.split(X, y)):
             # Generate batches from indices
             x_Train, x_Test = X.iloc[train_indices], X.iloc[val_test_indices]
             y_Train, y_Test = y.iloc[train_indices], y.iloc[val_test_indices]
-            #x_Train = self.Vector_text_data(x_Train)
+
+
+            #x_Train['target']=y_Train
+            #x_Train=x_Train[:5]
+            #x_Train = self.Vector_text_data(x_Train,x_Test)
             #x_Test = self.Vector_text_data(x_Test)
             print "-----"*10
             print "x_Test",x_Test.shape
@@ -311,6 +358,7 @@ class Trump_Tweets:
             print "-----" * 10
 
             x_Train_fs, x_Test_fs = self.variance_threshold_select(x_Train,x_Test)
+
             print list(x_Train_fs)
 
             clf_svm_lin = SVC(kernel='linear')
