@@ -22,7 +22,7 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.feature_extraction.text import TfidfTransformer
 import time
 from sklearn import metrics
-
+from sklearn import preprocessing
 from sklearn.svm import SVC
 from textblob import TextBlob
 from textblob import TextBlob as tb
@@ -166,7 +166,13 @@ class Trump_Tweets:
     def make_binary_col(self,df,name_col):
         df[name_col+'_B'] = np.where(df[name_col] > 0, 1, 0)
 
-
+    def norm_column(self,df,arr_name):
+        result = df.copy()
+        for feature_name in arr_name:
+            max_val = df[feature_name].max()
+            min_val = df[feature_name].min()
+            result[feature_name]  = (df[feature_name]-min_val) / (max_val-min_val)
+        return result
 
 
     def time_feature(self,df):
@@ -279,6 +285,12 @@ class Trump_Tweets:
         list_metric = []
         y=df['target']
         X=df.loc[:, df.columns != 'target']
+
+        #---normalize the data
+        to_norm_list = ['text_length', 'num_hash_tag', 'link', 'quotes', 'num_ref'
+            , 'num_mark_!', 'num_time']
+        X=self.norm_column(X,to_norm_list)
+
         sf = StratifiedKFold(n_splits=10, shuffle=True)
         sf.get_n_splits(X, y)
 
@@ -299,6 +311,7 @@ class Trump_Tweets:
             print "-----" * 10
 
             x_Train_fs, x_Test_fs = self.variance_threshold_select(x_Train,x_Test)
+            print list(x_Train_fs)
 
             clf_svm_lin = SVC(kernel='linear')
             t_start = time.clock()
