@@ -9,9 +9,6 @@ Stemmer & Lemmatization
 from nltk.corpus import stopwords  # Import the stop word list
 import nltk
 import string
-
-
-
 import re
 
 
@@ -24,9 +21,12 @@ wordnet_tag = {'NN': 'n', 'JJ': 'a', 'VB': 'v', 'RB': 'r', 'VBN': 'v', 'VBD': 'v
                'PRP$': 'n', 'RP': 'r', 'WP$': 'n', 'PDT': 'n', 'WDT': 'n', 'WP': 'n', 'LS': 'n'
                }
 
+
 Lemmaatizer = nltk.WordNetLemmatizer()
-stem = nltk.PorterSte
-cachedStopWords = nltk.stopwords.words("english")
+stem = nltk.PorterStemmer()
+cachedStopWords = stopwords.words("english")
+
+
 # Lemmatizer and POS tagger to fit each word based on its POS
 # require wordnet_tag
 def lemmatize_words_array(words_array):
