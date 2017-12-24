@@ -21,7 +21,7 @@ wordnet_tag = {'NN': 'n', 'JJ': 'a', 'VB': 'v', 'RB': 'r', 'VBN': 'v', 'VBD': 'v
                'PRP$': 'n', 'RP': 'r', 'WP$': 'n', 'PDT': 'n', 'WDT': 'n', 'WP': 'n', 'LS': 'n'
                }
 
-
+#####
 Lemmaatizer = nltk.WordNetLemmatizer()
 stem = nltk.PorterStemmer()
 cachedStopWords = stopwords.words("english")
