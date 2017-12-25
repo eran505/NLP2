@@ -28,13 +28,7 @@ from nltk.corpus import stopwords
 cachedStopWords = stopwords.words("english")
 
 
-def str_to_int(myString):
-    if len(myString) < 1 :
-        return -1
-    #pos = myString.find('.')
-    #new_string = myString[pos-1:pos+2]
-    int_num = int(float(myString))
-    return int_num
+
 
 def print_top_words(model, feature_names, n_top_words):
     for topic_idx, topic in enumerate(model.components_):
@@ -49,27 +43,7 @@ def print_top_words(model, feature_names, n_top_words):
 # footers and quoted replies, and common English words, words occurring in
 # only one document or in at least 95% of the documents are removed.
 
-print("Loading dataset...")
-t0 = time()
-#########reading data-set using csv ########################
-d=[]
-with open('/home/ise/Downloads/proc_17_108_unique_comments_text_dupe_count.csv', 'r') as csvfile:
-    reader = csv.reader(csvfile, delimiter=',', quotechar='"')
-    c=0
-    for row in reader:
-        d.append({'id':row[0],'text_data':row[1],'dupe_count':row[2] })
 
-df= pd.DataFrame(d,columns=['id','text_data','dupe_count'])
-df = df.iloc[2:]
-print "list=",list(df)
-print df.shape
-print "#"*100
-df['dupe_count_int']=df['dupe_count'].apply(lambda x: str_to_int(x))
-good_bye_list = ['dupe_count']
-df.drop(good_bye_list, axis=1, inplace=True)
-df= df.loc[df['dupe_count_int'] >= 0]
-print df.shape
-print ( "done in %0.3fs." % (time() - t0) )
 
 
 ##############################################################
@@ -80,13 +54,7 @@ Text Pre-processing with NLTK
 """
 
 
-print("data cleaning...")
-t0 = time()
-df = df.iloc[:1000]
-df['text_data']=df['text_data'].apply(lambda x: pp.patent_to_words(x))
-print ( "done in %0.3fs." % (time() - t0) )
-reltiv_path = "/home/ise/NLP/data_sets"
-df.to_csv(reltiv_path+"/res.csv",sep=',')
+
 exit()
 ###############################################################
 

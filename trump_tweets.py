@@ -180,7 +180,6 @@ class Trump_Tweets:
             result[feature_name]  = (df[feature_name]-min_val) / (max_val-min_val)
         return result
 
-
     def time_feature(self,df):
         df['night'] = np.where( (df['full_date'].dt.hour  > 18.0 ) | (df['full_date'].dt.hour  < 6.0 )  , 1 , 0)
         df['work_time'] = np.where((df['full_date'].dt.hour >= 6.0) & (df['full_date'].dt.hour < 18.0), 1, 0)
@@ -261,15 +260,18 @@ class Trump_Tweets:
         df_train_text_iphone = pd.DataFrame(tfidf_matrix_iphone, columns=[str(x) for x in tf.get_feature_names()], index=df_iphone.index)
         list_iphone = [str(x) for x in tf.get_feature_names()]
         tf = TfidfVectorizer( analyzer='word', ngram_range=(1,2),
-                             min_df=0.03)
+                              max_features=20,min_df=0.05)
+
         tfidf_matrix_android = tf.fit_transform(df_andriod['clean_tw']).toarray()
-        df_train_text_android  = pd.DataFrame(tfidf_matrix_android, columns=[str(x) for x in tf.get_feature_names()], index=df_andriod.index)
-        list_android = [str(x) for x in tf.get_feature_names()]
+        df_train_text_android  = pd.DataFrame(tfidf_matrix_android, columns=[ str(x) for x in tf.get_feature_names() ], index=df_andriod.index)
+        list_android = [ str(x) for x in tf.get_feature_names() ]
 
         diff = set(list_iphone) - set(list_android)
         diff2 = set(list_android) - set(list_iphone)
         diff_list = list(diff) + list(diff2)
         print diff_list
+
+        exit()
 
         cols_iphone = [col for col in df_train_text_iphone.columns if col in diff_list ]
         print df_train_text_iphone.shape
@@ -283,11 +285,6 @@ class Trump_Tweets:
 
 
         ######################################################################
-        tf = TfidfVectorizer(analyzer='word', ngram_range=(1, 2),
-                             min_df=0.03)
-        tfidf_matrix = tf.fit_transform(df_frame['clean_tw']).toarray()
-        df_train_text= pd.DataFrame(tfidf_matrix, columns=[str(x) for x in tf.get_feature_names()],index=df_frame.index)
-        feature_names = tf.get_feature_names()
 
         ######################################################################
 
@@ -305,8 +302,8 @@ class Trump_Tweets:
 
         #res_df= df_frame.merge(df_train_text, right_index=True, left_index=True)
 
-        good_bye_list=['clean_tw']
-        res_df.drop(good_bye_list, axis=1, inplace=True)
+        #good_bye_list=['clean_tw']
+        #res_df.drop(good_bye_list, axis=1, inplace=True)
 
         return res_df
     def data_preparation(self):
@@ -352,6 +349,9 @@ class Trump_Tweets:
             x_Train, x_Test = X.iloc[train_indices], X.iloc[val_test_indices]
             y_Train, y_Test = y.iloc[train_indices], y.iloc[val_test_indices]
 
+            self.Vector_text_data(x_Train,x_Test)
+
+
 
             #x_Train['target']=y_Train
             #x_Train=x_Train[:5]
@@ -371,9 +371,9 @@ class Trump_Tweets:
             clf_svm_lin.fit(x_Train_fs, y_Train)
             t = time.clock() - t_start
             y_pred = clf_svm_lin.predict(x_Test_fs)
-
-
-
+            #
+            #
+            #
             #add all method evaluation
             accuracy =metrics.accuracy_score(y_true=y_Test, y_pred=y_pred)
             fpr, tpr, thresholds = metrics.roc_curve(y_true=y_Test, y_score=y_pred, drop_intermediate=True)
@@ -383,7 +383,6 @@ class Trump_Tweets:
             f1 = metrics.f1_score(y_true=y_Test , y_pred=y_pred)
             list_metric.append({'AUC':auc,'Accuracy':accuracy,'RECALL':recall,
                                 'Precision':precision,'F1_score':f1,'Time':t})
-
 
         measure_df = pd.DataFrame(list_metric)
         list_param  = list(measure_df)
