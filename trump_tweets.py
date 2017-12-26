@@ -92,6 +92,10 @@ class Trump_Tweets:
         self.data_path = dataPath
         self.stemer=stem
         self.lemm=lem
+        self.test =None
+        self.test_orgin=None
+        self.test_matrix = None
+        self.test_df = None
         self.mean_info=[]
         self.tfidf = tf
         self.selection = selection
@@ -260,10 +264,13 @@ class Trump_Tweets:
     def Vector_text_data(self,df_frame,df_test,y,chi_not=False):
         print "vectorize"
         ######################################################################
+        #self.test = self.test_orgin.copy(deep=True)
         tf = TfidfVectorizer(analyzer='word', ngram_range=(1, 2),
                              min_df=0.02, max_df=0.5)
         tf_idf_matrix_train= tf.fit_transform(df_frame['clean_tw'])
         tf_idf_matrix_test =tf.transform(df_test['clean_tw'])
+        #self.test_matrix = tf.transform(self.test['clean_tw'])
+
         feature_names = tf.get_feature_names()
         feature_names = [str(x) for x in feature_names]
         #print "feature_names={}\n".format(feature_names)
@@ -276,24 +283,27 @@ class Trump_Tweets:
         #print "matrix test shape = {}".format(tf_idf_matrix_test.shape)
 
         if chi_not :
-            selector = SelectPercentile(score_func=f_classif,percentile=30)
+            selector = SelectPercentile(score_func=f_classif,percentile=35)
         else:
-            selector = SelectPercentile(score_func=chi2, percentile=30)
+            selector = SelectPercentile(score_func=chi2, percentile=35)
         selector.fit(tf_idf_matrix_train,y)
        # print [selector.get_support()]
         tf_idf_matrix_train = selector.transform(tf_idf_matrix_train).toarray()
         tf_idf_matrix_test = selector.transform(tf_idf_matrix_test).toarray()
+        #self.test_matrix  =  selector.transform(self.test_matrix).toarray()
         feature_names = [feature_names[i] for i in selector.get_support(indices=True)]
 
         df_train_df= pd.DataFrame(tf_idf_matrix_train, columns=feature_names, index=df_frame.index)
         df_test_df= pd.DataFrame(tf_idf_matrix_test, columns=feature_names, index=df_test.index)
+        #self.test_df = pd.DataFrame(self.test_matrix, columns=feature_names, index=self.test.index)
 
         df_frame = df_frame.merge(df_train_df, right_index=True, left_index=True)
         df_test = df_test.merge(df_test_df, right_index=True, left_index=True)
+        #self.test = self.test.merge(self.test_df, right_index=True, left_index=True)
 
         df_frame = df_frame.drop([ 'clean_tw'], axis=1)
         df_test = df_test.drop([ 'clean_tw'], axis=1)
-
+        #self.test = self.test.drop(['clean_tw'], axis=1)
 
         #print "matrix train shape = {}".format(tf_idf_matrix_train.shape)
         #print "matrix test shape = {}".format(tf_idf_matrix_test.shape)
@@ -303,18 +313,29 @@ class Trump_Tweets:
         ######################################################################
 
         return df_frame,df_test
+    def clean_test(self,df):
+        target_device = ['iphone','android'] # WEB | OTHER
+        new_df= self.df.copy(deep=True)
+        new_df = new_df.loc[new_df['device'].isin(target_device)]
+        new_df.reset_index(drop=True)
+        new_df['target'] = np.where(new_df['device'] == 'iphone',-1,1)
+        new_df = new_df.loc[new_df['account'] == "PressSec"]
+        new_df = new_df.drop(['device',  'time', 'date', 'id','code','tw_text','account',  'full_date'], axis=1)
+        print "col_test= ",list(new_df)
+        self.test = new_df
+        self.test_orgin=new_df
+
     def data_preparation(self):
         target_device = ['iphone','android'] # WEB | OTHER
-        new_df_copy= self.df.copy(deep=True)
-        new_df = new_df_copy.loc[new_df_copy['account'] == "realDonaldTrump"]
-        test_df =  new_df_copy.loc[new_df_copy['account'] != "realDonaldTrump"]
-        print test_df.shape
-        exit()
-        new_df = new_df.loc[new_df['full_date'] < datetime.date(2017, 4, 1)]
+        new_df= self.df.copy(deep=True)
         new_df = new_df.loc[new_df['device'].isin(target_device)]
-        new_df['target'] = np.where(new_df['device'] == 'iphone',-1,1)
         new_df.reset_index(drop=True)
-        new_df = new_df.drop([ 'account','device',  'time', 'date', 'id','code','full_date','tw_text'], axis=1)
+        new_df['target'] = np.where(new_df['device'] == 'iphone',-1,1)
+        new_df = new_df.loc[new_df['account'] == "realDonaldTrump"]
+        new_df = new_df.loc[new_df['full_date'] < datetime.date(2017, 4, 1)]
+        new_df = new_df.drop(['device',  'time', 'date', 'id','code','tw_text'], axis=1)
+        new_df = new_df.drop(['account',  'full_date'], axis=1)
+        self.clean_test(self.df)
         self.fit(new_df)
 
     def variance_threshold_select(self,df_train,df1_test, thresh=0.0099):
@@ -436,6 +457,7 @@ class Trump_Tweets:
             regr.fit(x_Train, y_Train)
             time_xgb = time.clock() - t0
             y_pred_xgb = regr.predict(x_Test)
+            print regr.predict(self.)
             #list_xgb = self.eval_pred(y_Test,y_pred_xgb,list_xgb,time_xgb)
 #############################################################################333
             y_pred_lasso_xgb = (y_pred_xgb + y_pred_lasso) / 2
@@ -480,6 +502,11 @@ class Trump_Tweets:
         return list_metric
 
 
+##########################################################################################################################################
+
+##########################################################################################################################################
+
+##########################################################################################################################################
 
 
 
