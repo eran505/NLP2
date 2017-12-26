@@ -92,6 +92,7 @@ class Trump_Tweets:
         self.data_path = dataPath
         self.stemer=stem
         self.lemm=lem
+        self.mean_info=[]
         self.tfidf = tf
         self.selection = selection
         self.stopWords = set(stopwords.words("english"))
@@ -304,8 +305,11 @@ class Trump_Tweets:
         return df_frame,df_test
     def data_preparation(self):
         target_device = ['iphone','android'] # WEB | OTHER
-        new_df= self.df.copy(deep=True)
-        new_df = new_df.loc[new_df['account'] == "realDonaldTrump"]
+        new_df_copy= self.df.copy(deep=True)
+        new_df = new_df_copy.loc[new_df_copy['account'] == "realDonaldTrump"]
+        test_df =  new_df_copy.loc[new_df_copy['account'] != "realDonaldTrump"]
+        print test_df.shape
+        exit()
         new_df = new_df.loc[new_df['full_date'] < datetime.date(2017, 4, 1)]
         new_df = new_df.loc[new_df['device'].isin(target_device)]
         new_df['target'] = np.where(new_df['device'] == 'iphone',-1,1)
@@ -328,8 +332,8 @@ class Trump_Tweets:
         list_metric_svm_poly= holder_list("svm_poly")
         list_metric_svm_sigmo = holder_list("svm_sigmo")
         list_metric_LogisticRegression = holder_list("LogisticRegression")
-        list_lsso = holder_list("lasso")
-        list_xgb = holder_list("xgb")
+        #list_lsso = holder_list("lasso")
+        #list_xgb = holder_list("xgb")
         list_metric_LX=holder_list("lasso_xgb")
 
         y=df['target']
@@ -379,7 +383,7 @@ class Trump_Tweets:
             print "y_Test.shape ",y_Test.shape
             list_metric_svm_liner = self.eval_pred(y_Test,y_pred_SVN_linear.round(),
                                                    list_metric_svm_liner,time_SVN_linear)
-#############################################################################333
+#############################################################################################
             t0=time.clock()
             clf_svm_poly = SVC(kernel='poly')
             clf_svm_poly.fit(x_Train, y_Train)
@@ -443,8 +447,8 @@ class Trump_Tweets:
             list_metric_LX = self.eval_pred(y_Test,y_pred_lasso_xgb,list_metric_LX,(time_xgb+time_lsso)/2)
 #############################################################################333
             print "done"
-
-        list_metric_all = [list_metric_LX,list_xgb,list_lsso,list_metric_LogisticRegression,
+        mean_list = []
+        list_metric_all = [list_metric_LX,list_metric_LogisticRegression,
                            list_metric_svm_sigmo,list_metric_svm_poly,list_metric_svm_liner]
         for obj in list_metric_all:
             list_metric = obj.list
@@ -455,9 +459,15 @@ class Trump_Tweets:
             measure_df["Is-lemm"] = self.lemm
             measure_df["Is-TfIdf"] = self.tfidf
             measure_df["Is-selection"] = self.selection
+            d={}
             for col in list_param:
                 print col,"=",measure_df[col].mean()
-            measure_df.to_csv("/home/eran/NLP/results/"+name+".csv")
+                d[col]=measure_df[col].mean()
+            parm="_stem={0}_lem={1}_sel={2}_tf={3}_".format(self.stemer,self.lemm,self.selection,self.tfidf)
+            d['id']=name+parm
+            mean_list.append(d)
+            measure_df.to_csv("/home/ise/NLP/results/"+name+parm+".csv")
+        self.mean_info = mean_list
     def eval_pred(self,y_Test,y_pred,list_metric,t):
         accuracy = metrics.accuracy_score(y_true=y_Test, y_pred=y_pred)
         fpr, tpr, thresholds = metrics.roc_curve(y_true=y_Test, y_score=y_pred, drop_intermediate=True)
@@ -471,8 +481,23 @@ class Trump_Tweets:
 
 
 
+
+
 if __name__ == "__main__":
+    #measure_df = pd.DataFrame()
+    all=[]
+    TT = Trump_Tweets('tweets.tsv')
+    all.extend(TT.mean_info)
     TT = Trump_Tweets('tweets.tsv',False)
+    all.extend(TT.mean_info)
     TT = Trump_Tweets('tweets.tsv',False,False)
-    TT = Trump_Tweets('tweets.tsv')
-    TT = Trump_Tweets('tweets.tsv')
+    all.extend(TT.mean_info)
+    TT = Trump_Tweets('tweets.tsv',False,False,False)
+    all.extend(TT.mean_info)
+    TT = Trump_Tweets('tweets.tsv',False,False,False,False)
+    all.extend(TT.mean_info)
+
+    measure_df = pd.DataFrame(all)
+    measure_df.to_csv("/home/ise/NLP/results/" + 'ALL' + ".csv")
+
+
