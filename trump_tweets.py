@@ -81,12 +81,19 @@ def find_url(text_input):
     result_text = re.sub(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', 'URLi', text_input)
     return str(result_text)
 
-
+class holder_list:
+    def __init__(self, name):
+        self.list = []
+        self.name = name
 
 class Trump_Tweets:
 
-    def __init__(self, dataPath):
+    def __init__(self, dataPath,stem=True,lem=True,tf=True,selection=True):
         self.data_path = dataPath
+        self.stemer=stem
+        self.lemm=lem
+        self.tfidf = tf
+        self.selection = selection
         self.stopWords = set(stopwords.words("english"))
         self.colo = ['id','account','tw_text','full_date','device']
         self.df =None
@@ -249,63 +256,52 @@ class Trump_Tweets:
         #print "new: "," ".join(res)
         return " ".join(res)
 
-    def Vector_text_data(self,df_frame,df_test):
+    def Vector_text_data(self,df_frame,df_test,y,chi_not=False):
         print "vectorize"
-        tf = TfidfVectorizer( analyzer='word', ngram_range=(1,2),
-                             min_df=0.05)
-        df_iphone = df_frame.loc[df_frame['device']=='iphone']
-        df_andriod= df_frame.loc[df_frame['device'] == 'android']
+        ######################################################################
+        tf = TfidfVectorizer(analyzer='word', ngram_range=(1, 2),
+                             min_df=0.02, max_df=0.5)
+        tf_idf_matrix_train= tf.fit_transform(df_frame['clean_tw'])
+        tf_idf_matrix_test =tf.transform(df_test['clean_tw'])
+        feature_names = tf.get_feature_names()
+        feature_names = [str(x) for x in feature_names]
+        #print "feature_names={}\n".format(feature_names)
+        #print "Y shape = {}".format(y.shape)
 
-        tfidf_matrix_iphone  = tf.fit_transform(df_iphone['clean_tw']).toarray()
-        df_train_text_iphone = pd.DataFrame(tfidf_matrix_iphone, columns=[str(x) for x in tf.get_feature_names()], index=df_iphone.index)
-        list_iphone = [str(x) for x in tf.get_feature_names()]
-        tf = TfidfVectorizer( analyzer='word', ngram_range=(1,2),
-                              max_features=20,min_df=0.05)
+        #print "train shape = {}".format(df_frame.shape)
+        #print "train shape = {}".format(df_test.shape)
 
-        tfidf_matrix_android = tf.fit_transform(df_andriod['clean_tw']).toarray()
-        df_train_text_android  = pd.DataFrame(tfidf_matrix_android, columns=[ str(x) for x in tf.get_feature_names() ], index=df_andriod.index)
-        list_android = [ str(x) for x in tf.get_feature_names() ]
+        #print "matrix train shape = {}".format(tf_idf_matrix_train.shape)
+        #print "matrix test shape = {}".format(tf_idf_matrix_test.shape)
 
-        diff = set(list_iphone) - set(list_android)
-        diff2 = set(list_android) - set(list_iphone)
-        diff_list = list(diff) + list(diff2)
-        print diff_list
+        if chi_not :
+            selector = SelectPercentile(score_func=f_classif,percentile=30)
+        else:
+            selector = SelectPercentile(score_func=chi2, percentile=30)
+        selector.fit(tf_idf_matrix_train,y)
+       # print [selector.get_support()]
+        tf_idf_matrix_train = selector.transform(tf_idf_matrix_train).toarray()
+        tf_idf_matrix_test = selector.transform(tf_idf_matrix_test).toarray()
+        feature_names = [feature_names[i] for i in selector.get_support(indices=True)]
 
-        exit()
+        df_train_df= pd.DataFrame(tf_idf_matrix_train, columns=feature_names, index=df_frame.index)
+        df_test_df= pd.DataFrame(tf_idf_matrix_test, columns=feature_names, index=df_test.index)
 
-        cols_iphone = [col for col in df_train_text_iphone.columns if col in diff_list ]
-        print df_train_text_iphone.shape
+        df_frame = df_frame.merge(df_train_df, right_index=True, left_index=True)
+        df_test = df_test.merge(df_test_df, right_index=True, left_index=True)
 
-        df_train_text_iphone = df_train_text_iphone[cols_iphone ]
-        print df_train_text_iphone.shape
-        cols_iphone = [col for col in df_train_text_android.columns if col in diff_list]
-        print df_train_text_android.shape
-        df_train_text_android = df_train_text_android[cols_iphone]
-        print df_train_text_android.shape
+        df_frame = df_frame.drop([ 'clean_tw'], axis=1)
+        df_test = df_test.drop([ 'clean_tw'], axis=1)
+
+
+        #print "matrix train shape = {}".format(tf_idf_matrix_train.shape)
+        #print "matrix test shape = {}".format(tf_idf_matrix_test.shape)
+        #print feature_names
 
 
         ######################################################################
 
-        ######################################################################
-
-        ch2 = SelectKBest(chi2, k=10)
-        X_train = ch2.fit_transform(df_train_text, df_frame['target'])
-        X_test = ch2.transform(df_test)
-        print feature_names[ch2.get_support(indices=True)]
-        feature_names = [feature_names[i] for i in ch2.get_support(indices=True)]
-        print feature_names
-
-        df_train_text_iphone.to_csv("~/NLP/NLP2/tf_iphone.csv")
-        df_train_text_android.to_csv("~/NLP/NLP2/tf_android.csv")
-        exit()
-
-
-        #res_df= df_frame.merge(df_train_text, right_index=True, left_index=True)
-
-        #good_bye_list=['clean_tw']
-        #res_df.drop(good_bye_list, axis=1, inplace=True)
-
-        return res_df
+        return df_frame,df_test
     def data_preparation(self):
         target_device = ['iphone','android'] # WEB | OTHER
         new_df= self.df.copy(deep=True)
@@ -314,7 +310,7 @@ class Trump_Tweets:
         new_df = new_df.loc[new_df['device'].isin(target_device)]
         new_df['target'] = np.where(new_df['device'] == 'iphone',-1,1)
         new_df.reset_index(drop=True)
-        new_df = new_df.drop([ 'account',  'time', 'date', 'id','code','full_date','tw_text'], axis=1)
+        new_df = new_df.drop([ 'account','device',  'time', 'date', 'id','code','full_date','tw_text'], axis=1)
         self.fit(new_df)
 
     def variance_threshold_select(self,df_train,df1_test, thresh=0.0099):
@@ -328,7 +324,14 @@ class Trump_Tweets:
         return df2,df2_test
 
     def fit(self,df):
-        list_metric = []
+        list_metric_svm_liner = holder_list("svm_liner")
+        list_metric_svm_poly= holder_list("svm_poly")
+        list_metric_svm_sigmo = holder_list("svm_sigmo")
+        list_metric_LogisticRegression = holder_list("LogisticRegression")
+        list_lsso = holder_list("lasso")
+        list_xgb = holder_list("xgb")
+        list_metric_LX=holder_list("lasso_xgb")
+
         y=df['target']
         X=df.loc[:, df.columns != 'target']
         #---normalize the data
@@ -349,10 +352,10 @@ class Trump_Tweets:
             x_Train, x_Test = X.iloc[train_indices], X.iloc[val_test_indices]
             y_Train, y_Test = y.iloc[train_indices], y.iloc[val_test_indices]
 
-            self.Vector_text_data(x_Train,x_Test)
+            x_Train,x_Test = self.Vector_text_data(x_Train,x_Test,y_Train)
 
-
-
+            #print "col train = ",list(x_Train)
+            #print "col_test = ",list(x_Test )
             #x_Train['target']=y_Train
             #x_Train=x_Train[:5]
             #x_Train = self.Vector_text_data(x_Train,x_Test)
@@ -362,35 +365,114 @@ class Trump_Tweets:
             print "x_Train", x_Train.shape
             print "-----" * 10
 
-            x_Train_fs, x_Test_fs = self.variance_threshold_select(x_Train,x_Test)
+            x_Train, x_Test = self.variance_threshold_select(x_Train,x_Test)
 
-            print list(x_Train_fs)
-
+            #print list(x_Train_fs)
+#############################################################################333
+            t_start=time.clock()
             clf_svm_lin = SVC(kernel='linear')
             t_start = time.clock()
-            clf_svm_lin.fit(x_Train_fs, y_Train)
-            t = time.clock() - t_start
-            y_pred = clf_svm_lin.predict(x_Test_fs)
-            #
-            #
-            #
-            #add all method evaluation
-            accuracy =metrics.accuracy_score(y_true=y_Test, y_pred=y_pred)
-            fpr, tpr, thresholds = metrics.roc_curve(y_true=y_Test, y_score=y_pred, drop_intermediate=True)
-            auc= np.trapz(tpr, fpr)
-            recall=  metrics.recall_score(y_true=y_Test, y_pred=y_pred)
-            precision = metrics.precision_score(y_true=y_Test , y_pred=y_pred)
-            f1 = metrics.f1_score(y_true=y_Test , y_pred=y_pred)
-            list_metric.append({'AUC':auc,'Accuracy':accuracy,'RECALL':recall,
-                                'Precision':precision,'F1_score':f1,'Time':t})
+            clf_svm_lin.fit(x_Train, y_Train)
+            time_SVN_linear = time.clock() - t_start
+            y_pred_SVN_linear = clf_svm_lin.predict(x_Test)
+            print "y_pred_SVN_linear ",y_pred_SVN_linear.shape
+            print "y_Test.shape ",y_Test.shape
+            list_metric_svm_liner = self.eval_pred(y_Test,y_pred_SVN_linear.round(),
+                                                   list_metric_svm_liner,time_SVN_linear)
+#############################################################################333
+            t0=time.clock()
+            clf_svm_poly = SVC(kernel='poly')
+            clf_svm_poly.fit(x_Train, y_Train)
+            time_poly = time.clock() - t0
+            y_pred_SVM_poly = clf_svm_poly.predict(x_Test)
+            list_metric_svm_poly=self.eval_pred(y_Test,y_pred_SVM_poly,list_metric_svm_poly,time_poly)
+#############################################################################333
+            t0 = time.clock()
+            clf_svm_sigmo = SVC(kernel='sigmoid')
+            clf_svm_sigmo.fit(x_Train, y_Train)
+            time_sigmo = time.clock() - t0
+            y_pred_SVM_sigmo = clf_svm_sigmo.predict(x_Test)
+            list_metric_svm_sigmo=self.eval_pred(y_Test,y_pred_SVM_sigmo,list_metric_svm_sigmo
+                                                 ,time_sigmo)
+#############################################################################333
+            t0 = time.clock()
+            clf_lg = LogisticRegression()
+            clf_lg.fit(x_Train, y_Train)
+            time_lg =  time.clock() - t0
+            y_pred_logisticR = clf_lg.predict(x_Test)
+            list_metric_LogisticRegression = self.eval_pred(y_Test,y_pred_logisticR,
+                                                            list_metric_LogisticRegression,time_lg)
+#############################################################################333
 
-        measure_df = pd.DataFrame(list_metric)
-        list_param  = list(measure_df)
-        for col in list_param:
-            print col,"=",measure_df[col].mean()
+            from sklearn.linear_model import Lasso
+            t0 = time.clock()
+            best_alpha = 0.00099
+            regr = Lasso(alpha=best_alpha, max_iter=60000)
+            regr.fit(x_Train, y_Train)
+            time_lsso=time.clock() - t0
+            y_pred_lasso = regr.predict(x_Test)
 
+            #list_lsso = self.eval_pred(y_Test,y_pred_lasso.round(),list_lsso,time_lsso)
+#############################################################################333
+            import xgboost as xgb
+            t0 = time.clock()
+            regr = xgb.XGBRegressor(
+                colsample_bytree=0.2,
+                gamma=0.0,
+                learning_rate=0.01,
+                max_depth=4,
+                min_child_weight=1.5,
+                n_estimators=7200,
+                reg_alpha=0.9,
+                reg_lambda=0.6,
+                subsample=0.2,
+                seed=42,
+                silent=1)
+
+            regr.fit(x_Train, y_Train)
+            time_xgb = time.clock() - t0
+            y_pred_xgb = regr.predict(x_Test)
+            #list_xgb = self.eval_pred(y_Test,y_pred_xgb,list_xgb,time_xgb)
+#############################################################################333
+            y_pred_lasso_xgb = (y_pred_xgb + y_pred_lasso) / 2
+            for i in np.arange(np.size(y_pred_lasso_xgb)):
+                if y_pred_lasso_xgb[i] > 0:
+                    y_pred_lasso_xgb[i] = 1
+                else:
+                    y_pred_lasso_xgb[i] =-1
+            list_metric_LX = self.eval_pred(y_Test,y_pred_lasso_xgb,list_metric_LX,(time_xgb+time_lsso)/2)
+#############################################################################333
+            print "done"
+
+        list_metric_all = [list_metric_LX,list_xgb,list_lsso,list_metric_LogisticRegression,
+                           list_metric_svm_sigmo,list_metric_svm_poly,list_metric_svm_liner]
+        for obj in list_metric_all:
+            list_metric = obj.list
+            measure_df = pd.DataFrame(list_metric)
+            list_param  = list(measure_df)
+            name  =  obj.name
+            measure_df["Is-stem"]=self.stemer
+            measure_df["Is-lemm"] = self.lemm
+            measure_df["Is-TfIdf"] = self.tfidf
+            measure_df["Is-selection"] = self.selection
+            for col in list_param:
+                print col,"=",measure_df[col].mean()
+            measure_df.to_csv("/home/eran/NLP/results/"+name+".csv")
+    def eval_pred(self,y_Test,y_pred,list_metric,t):
+        accuracy = metrics.accuracy_score(y_true=y_Test, y_pred=y_pred)
+        fpr, tpr, thresholds = metrics.roc_curve(y_true=y_Test, y_score=y_pred, drop_intermediate=True)
+        auc = np.trapz(tpr, fpr)
+        recall = metrics.recall_score(y_true=y_Test, y_pred=y_pred)
+        precision = metrics.precision_score(y_true=y_Test, y_pred=y_pred)
+        f1 = metrics.f1_score(y_true=y_Test, y_pred=y_pred)
+        list_metric.list.append({'AUC': auc, 'Accuracy': accuracy, 'RECALL': recall,
+                            'Precision': precision, 'F1_score': f1, 'Time': t})
+        return list_metric
 
 
 
 if __name__ == "__main__":
+    TT = Trump_Tweets('tweets.tsv',False)
+    TT = Trump_Tweets('tweets.tsv',False,False)
+    TT = Trump_Tweets('tweets.tsv')
     TT = Trump_Tweets('tweets.tsv')
