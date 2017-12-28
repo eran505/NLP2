@@ -52,10 +52,8 @@ def patent_to_words(raw):
     # The input is a single string (a raw movie review), and
     # the output is a single string (a preprocessed movie review)
     #
-    # 1. Remove HTML
-    # review_text = BeautifulSoup(raw_review).get_text()
     #
-    # 2. Remove non-letters
+    # 1. Remove non-letters
     letters_only = re.sub("[^a-zA-Z]", " ", raw)
     #
     # 3. Convert to lower case, split into individual words

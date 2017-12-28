@@ -1,36 +1,20 @@
 import string
-from sklearn import feature_extraction, pipeline
-
 import pandas as pd
 import numpy as np
 import datetime,re,nltk,os
-import matplotlib.pyplot as plt
-from numpy.core.defchararray import index
-
-from sklearn.datasets import fetch_20newsgroups
-from sklearn.feature_selection import mutual_info_classif
-from sklearn.feature_extraction.text import CountVectorizer
-
-from sklearn.decomposition import TruncatedSVD
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import SelectPercentile
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.feature_selection import f_classif
-from sklearn.preprocessing import Normalizer
 from sklearn.model_selection import StratifiedKFold
-from sklearn.feature_extraction.text import TfidfTransformer
 import time
 from sklearn import metrics
-from sklearn import preprocessing
 from sklearn.svm import SVC
 from textblob import TextBlob
-from textblob import TextBlob as tb
 from sklearn.feature_selection import SelectKBest, chi2
 from nltk.corpus import stopwords
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
+import copy
 # April 2017  = Trump switched to a secured phone
 #contains quotes (trump)
 #contais image or url(not trump)
@@ -88,10 +72,11 @@ class holder_list:
 
 class Trump_Tweets:
 
-    def __init__(self, dataPath,stem=True,lem=True,tf=True,selection=True):
+    def __init__(self, dataPath,stem=True,lem=True,tf=True,selection=True,stop=True):
         self.data_path = dataPath
         self.stemer=stem
         self.lemm=lem
+        self.stop = stop
         self.test =None
         self.test_orgin=None
         self.test_matrix = None
@@ -144,6 +129,10 @@ class Trump_Tweets:
         df['device'] = np.where(df['device'].str.contains("<a"), "OTHER", df['device'])       #TV device
         #df['device'] = np.where(df['device'].str.contains("TweetDeck"), "Press", df['device'])
 
+
+
+
+
         df['code'] = df['device'].astype('category').cat.codes
         #
 
@@ -152,7 +141,6 @@ class Trump_Tweets:
         #df.sort_values('time', ascending=True,inplace=True)
         self.time_feature(df)
         #new_df = df.loc[df['account'] == "realDonaldTrump"]
-        #new_df = df.loc[df['full_date'] > datetime.date(2017,4,1)]
         #print df[['id','tokens']][:10]
         #print new_df.shape
         #print df.shape
@@ -253,8 +241,9 @@ class Trump_Tweets:
 
         res = []
         for w in nltk.word_tokenize(tweet):
-            if w in self.stopWords:
-                continue
+            if self.stop:
+                if w in self.stopWords:
+                    continue
             w = self.stem.stem(w)
             w = self.Lemmaatizer.lemmatize(w)
             res.append(w)
@@ -316,6 +305,8 @@ class Trump_Tweets:
     def clean_test(self,df):
         target_device = ['iphone','android'] # WEB | OTHER
         new_df= self.df.copy(deep=True)
+        new_df = new_df.loc[new_df['account'] == "PressSec"]
+
         new_df = new_df.loc[new_df['device'].isin(target_device)]
         new_df.reset_index(drop=True)
         new_df['target'] = np.where(new_df['device'] == 'iphone',-1,1)
@@ -353,8 +344,8 @@ class Trump_Tweets:
         list_metric_svm_poly= holder_list("svm_poly")
         list_metric_svm_sigmo = holder_list("svm_sigmo")
         list_metric_LogisticRegression = holder_list("LogisticRegression")
-        #list_lsso = holder_list("lasso")
-        #list_xgb = holder_list("xgb")
+        list_lsso = holder_list("lasso")
+        list_xgb = holder_list("xgb")
         list_metric_LX=holder_list("lasso_xgb")
 
         y=df['target']
@@ -366,6 +357,7 @@ class Trump_Tweets:
 
         sf = StratifiedKFold(n_splits=10, shuffle=True)
         sf.get_n_splits(X, y)
+
 
         #print "*" * 55
         #print "mutual_info = ",mutual_info_classif(X, y)
@@ -390,7 +382,7 @@ class Trump_Tweets:
             print "x_Train", x_Train.shape
             print "-----" * 10
 
-            x_Train, x_Test = self.variance_threshold_select(x_Train,x_Test)
+            #x_Train, x_Test = self.variance_threshold_select(x_Train,x_Test)
 
             #print list(x_Train_fs)
 #############################################################################333
@@ -437,10 +429,12 @@ class Trump_Tweets:
             time_lsso=time.clock() - t0
             y_pred_lasso = regr.predict(x_Test)
 
-            #list_lsso = self.eval_pred(y_Test,y_pred_lasso.round(),list_lsso,time_lsso)
+
+            list_lsso = self.eval_pred(y_Test,self.probabilty_to_scalar(y_pred_lasso),list_lsso,time_lsso)
 #############################################################################333
             import xgboost as xgb
             t0 = time.clock()
+            print "xgboost= start :", t0
             regr = xgb.XGBRegressor(
                 colsample_bytree=0.2,
                 gamma=0.0,
@@ -456,9 +450,10 @@ class Trump_Tweets:
 
             regr.fit(x_Train, y_Train)
             time_xgb = time.clock() - t0
+            print "xgboost= end:",time_xgb
             y_pred_xgb = regr.predict(x_Test)
-            print regr.predict(self.)
-            #list_xgb = self.eval_pred(y_Test,y_pred_xgb,list_xgb,time_xgb)
+          #  print regr.predict(self.)
+            list_xgb = self.eval_pred(y_Test,self.probabilty_to_scalar(y_pred_xgb),list_xgb,time_xgb)
 #############################################################################333
             y_pred_lasso_xgb = (y_pred_xgb + y_pred_lasso) / 2
             for i in np.arange(np.size(y_pred_lasso_xgb)):
@@ -470,7 +465,7 @@ class Trump_Tweets:
 #############################################################################333
             print "done"
         mean_list = []
-        list_metric_all = [list_metric_LX,list_metric_LogisticRegression,
+        list_metric_all = [list_metric_LX,list_metric_LogisticRegression,list_xgb,list_lsso,
                            list_metric_svm_sigmo,list_metric_svm_poly,list_metric_svm_liner]
         for obj in list_metric_all:
             list_metric = obj.list
@@ -485,10 +480,11 @@ class Trump_Tweets:
             for col in list_param:
                 print col,"=",measure_df[col].mean()
                 d[col]=measure_df[col].mean()
-            parm="_stem={0}_lem={1}_sel={2}_tf={3}_".format(self.stemer,self.lemm,self.selection,self.tfidf)
+            parm="_stem={0}_lem={1}_sel={2}_tf={3}_stop={4}_".format(self.stemer,self.lemm,self.selection,self.tfidf,self.stop)
             d['id']=name+parm
             mean_list.append(d)
-            measure_df.to_csv("/home/ise/NLP/results/"+name+parm+".csv")
+
+            measure_df.to_csv(name+parm+".csv")
         self.mean_info = mean_list
     def eval_pred(self,y_Test,y_pred,list_metric,t):
         accuracy = metrics.accuracy_score(y_true=y_Test, y_pred=y_pred)
@@ -500,11 +496,18 @@ class Trump_Tweets:
         list_metric.list.append({'AUC': auc, 'Accuracy': accuracy, 'RECALL': recall,
                             'Precision': precision, 'F1_score': f1, 'Time': t})
         return list_metric
-
+    def probabilty_to_scalar(self,np_arr):
+        a = copy.deepcopy(np_arr)
+        for i in np.arange(np.size(a)):
+            if a[i] > 0:
+                a[i] = 1
+            else:
+                a[i] = -1
+        return a
 
 ##########################################################################################################################################
 
-##########################################################################################################################################
+##################################################################################################################################
 
 ##########################################################################################################################################
 
@@ -512,19 +515,7 @@ class Trump_Tweets:
 
 if __name__ == "__main__":
     #measure_df = pd.DataFrame()
-    all=[]
     TT = Trump_Tweets('tweets.tsv')
-    all.extend(TT.mean_info)
-    TT = Trump_Tweets('tweets.tsv',False)
-    all.extend(TT.mean_info)
-    TT = Trump_Tweets('tweets.tsv',False,False)
-    all.extend(TT.mean_info)
-    TT = Trump_Tweets('tweets.tsv',False,False,False)
-    all.extend(TT.mean_info)
-    TT = Trump_Tweets('tweets.tsv',False,False,False,False)
-    all.extend(TT.mean_info)
 
-    measure_df = pd.DataFrame(all)
-    measure_df.to_csv("/home/ise/NLP/results/" + 'ALL' + ".csv")
 
 

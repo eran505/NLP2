@@ -45,8 +45,8 @@ def str_to_int(myString):
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #paramters
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-n_samples = 50000              # 0.20 ~ 50k
-n_features = 550
+n_samples = 10000              # 0.20 ~ 50k
+n_features = 3000
 n_topics = 10
 n_top_words = 20
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -57,18 +57,18 @@ def print_top_words(model, feature_names, n_top_words):
                         for i in topic.argsort()[:-n_top_words - 1:-1]]))
     print()
 
-def read_data():
-    df = pd.read_csv('tweets.tsv', sep='\t', names=['id','account','tw_text','full_date','device'], quoting=3)
+def read_data(path):
+    df = pd.read_csv(path, sep='\t', names=['id','account','tw_text','full_date','device'], quoting=3)
     df['tw_text'] = df['tw_text'].astype(str)
     df['clean'] = df['tw_text'].apply(pp.clean_tweets_data)
     return df['clean']
 
-def read_corpus():
+def read_corpus(path_p):
     print("Loading data-set...")
     t0 = time()
     #########reading data-set using csv ########################
     d = []
-    with open('/home/ise/Downloads/proc_17_108_unique_comments_text_dupe_count.csv', 'r') as csvfile:
+    with open(path_p, 'r') as csvfile:
         reader = csv.reader(csvfile, delimiter=',', quotechar='"')
         c = 0
         for row in reader:
@@ -91,10 +91,11 @@ def read_corpus():
     print ("done in %0.3fs." % (time() - t0))
     return df['text_data']
 
-def read_csv_pandas():
-    path = "/home/ise/NLP/data_sets/"
-    file_stem="res_stem.csv"
+def read_csv_pandas(path_p):
+    path = "/home/ise/NLP/"
+    file_stem="res_no_stem2_no_lemm.csv"
     full_path = path+file_stem
+    full_path = path_p
     t0 = time()
     df= pd.read_csv(full_path,sep=',',names=['id', 'text_data', 'dupe_count'],error_bad_lines=False)
     df = df.iloc[1:]
@@ -106,7 +107,7 @@ def read_csv_pandas():
     return df['text_data']
 
 def tf_idf_vector(df):
-    print("Extracting tf-idf features for NMF...")
+    print("Extracting tf-idf features for LDA..")
     tfidf_vectorizer = TfidfVectorizer(max_df=0.95, min_df=2,
                                        max_features=n_features,
                                        stop_words='english')
@@ -156,10 +157,10 @@ def eval_topic(doc_topics):
         topic_most_pr = doc_topics[n].argmax()
         print ("doc:{} topic:{} \n ".format(n, topic_most_pr))
 
-def cross_validation(func_read,num_fold=2, topic_arr=None,no_idf=True):
+def cross_validation(func_read,p,num_fold=10, topic_arr=None,no_idf=False):
     if topic_arr is None:
-        topic_arr = [10,7,10]
-    df = read_csv_pandas()
+        topic_arr = [2,5,10,20]
+    df = read_csv_pandas(p)
     rows_n = len(df.index)
     print rows_n
     sf = KFold(n_splits=num_fold, shuffle=True)
@@ -169,6 +170,9 @@ def cross_validation(func_read,num_fold=2, topic_arr=None,no_idf=True):
     for top in topic_arr:
         d[top]={"train":[],"test":[]}
     for index, (train_indices, val_test_indices) in enumerate(sf.split(X)):
+        print "************" * 20
+        print "train anlysis"
+        print "************" * 20
         x_Train, x_Test = X.iloc[train_indices], X.iloc[val_test_indices]
         print x_Train.shape
         print x_Test.shape
@@ -184,14 +188,23 @@ def cross_validation(func_read,num_fold=2, topic_arr=None,no_idf=True):
             data_matrix=lda.fit_transform(tf)
             #cluster_analysis_DBSCAN(data_matrix)
             cluster_analysis_kmeans(data_matrix)
-            exit()
+
+            print "************"*20
+            print "TEST anlysis"
+            print "************" * 20
             if no_idf:
                 tf_test, tf_vectorized_test = tf_vector(x_Test)
             else:
                 tf_test, tf_vectorized_test = tf_idf_vector(x_Test)
             test_socre = eval(lda,tf_test)
+
+            data_matrix_test=lda.fit_transform(tf_test)
+            #cluster_analysis_DBSCAN(data_matrix)
+            cluster_analysis_kmeans(data_matrix_test)
             print "test: ",test_socre
             d[num_topic]['test'].append(test_socre)
+
+        exit()
     list_train=[]
     list_test = []
     list_n_topic = []
@@ -203,9 +216,9 @@ def cross_validation(func_read,num_fold=2, topic_arr=None,no_idf=True):
         print "mean_train: ",np.mean(d[k]['train'])
         print "mean_test: " ,np.mean(d[k]['test'])
 
-    plt.plot(list_n_topic,list_test,'r')
-    plt.plot(list_n_topic,list_train,'g')
-    plt.show()
+    #plt.plot(list_n_topic,list_test,'r')
+    #plt.plot(list_n_topic,list_train,'g')
+    #plt.show()
 
 
 
@@ -241,18 +254,27 @@ def cluster_analysis_DBSCAN(X):
 
 
 
-def init_model():
-    #read_csv_pandas()
-    #read_data()
-    #cross_validation(read_data)
-    cross_validation(read_csv_pandas)
+def init_model(path,arg):
+    if arg == 'T':
+        cross_validation(read_data,path)
+    elif arg =='F':
+        cross_validation(read_corpus,path)
 
 
 
 
+import sys
 
 if __name__ == "__main__":
-    init_model()
+    args = sys.argv
+    if len(args) == 3:
+        init_model(args[1],args[2])
+    else:
+        print "no path was giving"
+        print "usage python.py -path [T,F]\n\n"
+        print "*"*300
+        print "\nT stand for Trumps tweets"
+        print "F stand for FCC"
     print "---- topic model ------"
 
     #init_model()
